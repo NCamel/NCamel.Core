@@ -6,19 +6,28 @@ using System.Security.Cryptography;
 
 namespace NCamel.Core.FileEndpoint
 {
+    /// <summary>
+    /// example of a batching enpoint
+    /// </summary>
     public class FolderMonitorEndpoint : IProducer<string>
     {
         const string ProcessedFolderName = ".ncamel/";
         private readonly Context ctx;
+
         private string folderName;
         private bool recursive;
         private bool deleteFile;
         string searchPattern;
 
+        public FolderMonitorEndpoint(Context ctx)
+        {
+            this.ctx = ctx;
+        }
+
         public static class MetaDataNames
         {
-            public static string FilemonitorFileinfo = "FileMonitor:FileInfo";
-            public static string FilemonitorMd5 = "FileMonitor:MD5";
+            public static string FoldermonitorFileinfo = "FolderMonitor:FileInfo";
+            public static string FoldermonitorMd5 = "FolderMonitor:MD5";
         }
 
         public FolderMonitorEndpoint Recursive(bool r)
@@ -45,11 +54,6 @@ namespace NCamel.Core.FileEndpoint
             return this;
         }
 
-        public FolderMonitorEndpoint(Context ctx)
-        {
-            this.ctx = ctx;
-        }
-
         public IEnumerable<Exchange> Execute()
         {
             Logger.Info($"{nameof(FolderMonitorEndpoint)} Checking {folderName}");
@@ -74,13 +78,13 @@ namespace NCamel.Core.FileEndpoint
         public void OnComplete(Exchange e)
         {
             var info = e.Message.GetFileInfo();
+
             if (e.IsFaulted)
             {
                 Logger.Warn($"Failed to process file '{info.FullName}' Will retry");
             }
             else
             {
-
                 if (deleteFile)
                     File.Delete(info.FullName);
                 else
@@ -90,8 +94,8 @@ namespace NCamel.Core.FileEndpoint
 
         private Message<string> FillMetaData(Message<string> msg, string file, FileInfo fileInfo)
         {
-            msg.MetaData[MetaDataNames.FilemonitorFileinfo] = fileInfo;
-            msg.MetaData[MetaDataNames.FilemonitorMd5] = Convert.ToBase64String(MD5.Create().ComputeHash(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(file))));
+            msg.MetaData[MetaDataNames.FoldermonitorFileinfo] = fileInfo;
+            msg.MetaData[MetaDataNames.FoldermonitorMd5] = Convert.ToBase64String(MD5.Create().ComputeHash(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(file))));
            
             return msg;
         }
@@ -102,16 +106,16 @@ namespace NCamel.Core.FileEndpoint
         }
     }
 
-    public static class FileMonitorExtensions
+    public static class FolderMonitorExtensions
     {
         public static FileInfo GetFileInfo(this Message message)
         {
-            return (FileInfo)message.MetaData[FolderMonitorEndpoint.MetaDataNames.FilemonitorFileinfo];
+            return (FileInfo)message.MetaData[FolderMonitorEndpoint.MetaDataNames.FoldermonitorFileinfo];
         }
 
         public static string GetMD5CheckSum(this Message message)
         {
-            return (string)message.MetaData[FolderMonitorEndpoint.MetaDataNames.FilemonitorMd5];
+            return (string)message.MetaData[FolderMonitorEndpoint.MetaDataNames.FoldermonitorMd5];
         }
     }
 }
