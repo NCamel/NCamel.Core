@@ -42,6 +42,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="OutEndpoint\ConsoleWritelineEndpoint.cs" />
     <Compile Include="Core.cs" />
     <Compile Include="Endpoint\FolderMonitorEndpoint.cs" />
     <Compile Include="Logger.cs" />
