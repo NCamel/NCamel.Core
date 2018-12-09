@@ -81,6 +81,7 @@ namespace NCamel.Core
     {
         public Guid Id { get; }
         public Dictionary<string, object> MetaData = new Dictionary<string, object>();
+        public object Content { get; set; }
 
         public Message()
         {
@@ -90,6 +91,10 @@ namespace NCamel.Core
 
     public class Message<T> : Message
     {
-        public T Content { get; set; }
+        public T Content
+        {
+            get { return (T) base.Content; }
+            set { base.Content = value; }
+        }
     }
 }
