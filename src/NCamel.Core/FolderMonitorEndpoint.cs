@@ -58,7 +58,7 @@ namespace NCamel.Core.FileEndpoint
             if(!di.Exists)
                 throw new ArgumentException($"Folder not found \'{folderName}\'");
 
-            var messages = di.EnumerateDirectories()
+            var messages = di.EnumerateDirectories("*",recursive?SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
                 .Where(x => x.Name != ProcessedFolderName)
                 .SelectMany(x => x.EnumerateFiles(searchPattern ?? "*", SearchOption.TopDirectoryOnly))
                 .Select(x =>
@@ -73,14 +73,18 @@ namespace NCamel.Core.FileEndpoint
 
         public void OnComplete(Exchange e)
         {
+            var info = e.Message.GetFileInfo();
             if (e.IsFaulted)
             {
-                Logger.Warn("Failed to process file. Will retry");
+                Logger.Warn($"Failed to process file '{info.FullName}' Will retry");
             }
             else
             {
-                var info = e.Message.GetFileInfo();
-                File.Move(info.FullName, Path.Combine(info.DirectoryName, ProcessedFolderName, info.Name));
+
+                if (deleteFile)
+                    File.Delete(info.FullName);
+                else
+                    File.Move(info.FullName, Path.Combine(info.DirectoryName, ProcessedFolderName, info.Name));
             }
         }
 
