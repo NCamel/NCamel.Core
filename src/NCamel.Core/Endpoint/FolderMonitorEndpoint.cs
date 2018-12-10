@@ -3,38 +3,27 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace NCamel.Core.FileEndpoint
 {
     /// <summary>
-    /// example of a batching enpoint
+    ///     example of a batching enpoint
     /// </summary>
     public class FolderMonitorEndpoint : IProducer<string>
     {
-        const string ProcessedFolderName = ".ncamel/";
+        private const string ProcessedFolderName = ".ncamel/";
         private readonly Context ctx;
+        private bool deleteFile;
 
         private string folderName;
         private bool recursive;
-        private bool deleteFile;
-        string searchPattern;
+        private string searchPattern;
 
         public FolderMonitorEndpoint(Context ctx)
         {
             this.ctx = ctx;
         }
-
-	    public class FileInformation
-	    {
-		    public string Content;
-		    public string MD5String;
-		    public FileInfo Info;
-
-		    public FileInformation(byte[] b)
-		    {
-			    MD5String = Convert.ToBase64String(MD5.Create().ComputeHash(new MemoryStream(b)));
-		    }
-	    }
 
 
         public FolderMonitorEndpoint Recursive(bool r)
@@ -65,11 +54,12 @@ namespace NCamel.Core.FileEndpoint
         {
             Logger.Info($"{nameof(FolderMonitorEndpoint)} Checking {folderName}");
 
-            DirectoryInfo di = new DirectoryInfo(folderName);
-            if(!di.Exists)
+            var di = new DirectoryInfo(folderName);
+            if (!di.Exists)
                 throw new ArgumentException($"Folder not found \'{folderName}\'");
 
-            var messages = di.EnumerateDirectories("*",recursive?SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
+            var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+            var messages = di.EnumerateDirectories("*", searchOption)
                 .Where(x => x.Name != ProcessedFolderName)
                 .SelectMany(x => x.EnumerateFiles(searchPattern ?? "*", SearchOption.TopDirectoryOnly))
                 .Select(x =>
@@ -78,7 +68,7 @@ namespace NCamel.Core.FileEndpoint
                     return FillMetaData(new Message<string>(), file, x);
                 })
                 .Select(x => new Exchange(ctx, OnComplete) {Message = x});
-            
+
             return messages;
         }
 
@@ -101,19 +91,31 @@ namespace NCamel.Core.FileEndpoint
 
         private Message<string> FillMetaData(Message<string> msg, string file, FileInfo fileInfo)
         {
-            msg.MetaData.Add(new FileInformation(System.Text.Encoding.UTF8.GetBytes(file))
+            msg.MetaData.Add(new FileInformation(Encoding.UTF8.GetBytes(file))
                 {
                     Content = file,
                     Info = fileInfo
                 }
             );
-           
+
             return msg;
         }
 
         private string ReadFile(FileInfo fileInfo)
         {
             return File.ReadAllText(fileInfo.FullName);
+        }
+
+        public class FileInformation
+        {
+            public string Content;
+            public FileInfo Info;
+            public string MD5String;
+
+            public FileInformation(byte[] b)
+            {
+                MD5String = Convert.ToBase64String(MD5.Create().ComputeHash(new MemoryStream(b)));
+            }
         }
     }
 }

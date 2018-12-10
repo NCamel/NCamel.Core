@@ -4,22 +4,21 @@ using NCamel.Core.FileEndpoint;
 
 namespace NCamel.Core
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
-            var  ctx =new Context();
+            var ctx = new Context();
 
             ctx.Register(() =>
             {
                 new Throtler().Execute(
-                    TimeSpan.FromSeconds(1), 
-                    ctx.CancellationTokenSource.Token,  
+                    TimeSpan.FromSeconds(1),
+                    ctx.CancellationTokenSource.Token,
                     () => new FolderMonitorEndpoint(ctx).Folder(@"c:\temp").Execute());
             });
 
-			Thread.Sleep(4000);
+            Thread.Sleep(4000);
         }
     }
 }
-

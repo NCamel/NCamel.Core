@@ -11,10 +11,10 @@ namespace NCamel.Core
 
     public class Context
     {
-        public Action ExceptionHandling;
         public CancellationTokenSource CancellationTokenSource = new CancellationTokenSource();
+        public Action ExceptionHandling;
 
-        List<Task> tasks = new List<Task>();
+        private readonly List<Task> tasks = new List<Task>();
 
         public Context()
         {
@@ -35,7 +35,6 @@ namespace NCamel.Core
         {
             tasks.Add(Task.Run(() => new Throtler().Execute(minimumDelay, CancellationTokenSource.Token, f)));
         }
-
     }
 
     public class Throtler
@@ -44,11 +43,11 @@ namespace NCamel.Core
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                DateTime now = DateTime.Now;
+                var now = DateTime.Now;
 
                 f();
 
-                TimeSpan duration = now - DateTime.Now;
+                var duration = now - DateTime.Now;
 
                 if (duration < minimumDelay)
                     cancellationToken.WaitHandle.WaitOne(minimumDelay - duration);
@@ -58,6 +57,12 @@ namespace NCamel.Core
 
     public class Exchange
     {
+        public Exchange(Context ctx, Action<Exchange> onComplete)
+        {
+            Ctx = ctx;
+            OnCompleteHandler = onComplete;
+        }
+
         public Context Ctx { get; }
         public DateTime StartTime { get; } = DateTime.Now;
         public Exception Exception { get; set; }
@@ -67,24 +72,19 @@ namespace NCamel.Core
         public Message Message { get; set; }
 
         public Action<Exchange> OnCompleteHandler { get; set; }
-
-        public Exchange(Context ctx, Action<Exchange> onComplete)
-        {
-            Ctx = ctx;
-            OnCompleteHandler = onComplete;
-        }
     }
 
     public class Message
     {
-        public Guid Id { get; }
         public List<object> MetaData = new List<object>();
-        public object Content { get; set; }
 
         public Message()
         {
             Id = Guid.NewGuid();
         }
+
+        public Guid Id { get; }
+        public object Content { get; set; }
 
         public IEnumerable<T> Get<T>()
         {
@@ -96,8 +96,8 @@ namespace NCamel.Core
     {
         public T Content
         {
-            get { return (T) base.Content; }
-            set { base.Content = value; }
+            get => (T) base.Content;
+            set => base.Content = value;
         }
     }
 }
