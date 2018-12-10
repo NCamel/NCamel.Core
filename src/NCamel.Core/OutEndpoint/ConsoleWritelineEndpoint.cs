@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace NCamel.Core
 {
-    public class ConsoleWritelineEndpoint
+    public class ConsoleWritelineEndpoint : Step
     {
         private readonly Context ctx;
 
@@ -15,10 +15,16 @@ namespace NCamel.Core
         public void Execute(Exchange e)
         {
             Console.WriteLine("ConsoleWritelineEndpoint");
+            Console.WriteLine("------------------------");
             Console.WriteLine($"id:{e.Message.Id}");
             Console.WriteLine("Headers");
             e.Message.MetaData.ToList().ForEach(x => Console.WriteLine(x.ToString()));
             Console.WriteLine($"content:{e.Message.Content}");
+        }
+
+        public void OnComplete(Exchange e)
+        {
+            
         }
     }
 }

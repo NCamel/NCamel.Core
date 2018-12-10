@@ -7,6 +7,64 @@ using System.Text;
 
 namespace NCamel.Core.FileEndpoint
 {
+    public class FolderMonitorEndpointBuilder
+    {
+        private readonly Context ctx;
+
+        private string folderName;
+        private bool deleteFile;
+        private bool recursive;
+        private string searchPattern = "*.*";
+        private Route route;
+
+        public FolderMonitorEndpointBuilder(Context ctx)
+        {
+            this.ctx = ctx;
+        }
+
+        public FolderMonitorEndpointBuilder Folder(string f)
+        {
+            folderName = f;
+            return this;
+        }
+        public FolderMonitorEndpointBuilder Recursive(bool r)
+        {
+            recursive = r;
+            return this;
+        }
+
+        public FolderMonitorEndpointBuilder DeleteFile(bool d = true)
+        {
+            deleteFile = d;
+            return this;
+        }
+
+        public FolderMonitorEndpointBuilder WithPattern(string searchPattern)
+        {
+            this.searchPattern = searchPattern;
+            return this;
+        }
+
+        public FolderMonitorEndpointBuilder To(Route r)
+        {
+            this.route = r;
+            return this;
+        }
+
+        public FolderMonitorEndpoint Build()
+        {
+            return new FolderMonitorEndpoint(ctx, folderName, deleteFile, recursive, searchPattern, route);
+        }
+    }
+
+    public static class FolderMonitorEndpointBuilderExt
+    {
+        public static FolderMonitorEndpointBuilder FolderMonitorEndpointBuilder(this Context ctx)
+        {
+            return new FolderMonitorEndpointBuilder(ctx);
+        }
+    }
+
     /// <summary>
     ///     example of a batching enpoint
     /// </summary>
@@ -14,46 +72,20 @@ namespace NCamel.Core.FileEndpoint
     {
         private const string ProcessedFolderName = ".ncamel/";
         private readonly Context ctx;
-        private  Route route;
-        private bool deleteFile;
+        private readonly Route route;
+        private readonly string folderName;
+        private readonly bool deleteFile;
+        private readonly bool recursive;
+        private readonly string searchPattern;
 
-        private string folderName;
-        private bool recursive;
-        private string searchPattern = "*.*";
-
-        public FolderMonitorEndpoint(Context ctx)
+        public FolderMonitorEndpoint(Context ctx, string folder, bool deleteFile, bool recursive, string searchPattern, Route r)
         {
             this.ctx = ctx;
-        }
-
-        public void To(Route r)
-        {
-            this.route = r;
-            Execute();
-        }
-
-        public FolderMonitorEndpoint Recursive(bool r)
-        {
-            recursive = r;
-            return this;
-        }
-
-        public FolderMonitorEndpoint DeleteFile(bool d = true)
-        {
-            deleteFile = d;
-            return this;
-        }
-
-        public FolderMonitorEndpoint WithPattern(string searchPattern)
-        {
-            this.searchPattern = searchPattern;
-            return this;
-        }
-
-        public FolderMonitorEndpoint Folder(string folder)
-        {
             folderName = folder;
-            return this;
+            this.deleteFile = deleteFile;
+            this.recursive = recursive;
+            this.searchPattern = searchPattern;
+            this.route = r;
         }
 
         public void Execute()
