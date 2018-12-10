@@ -24,11 +24,18 @@ namespace NCamel.Core.FileEndpoint
             this.ctx = ctx;
         }
 
-        public static class MetaDataNames
-        {
-            public static string FoldermonitorFileinfo = "FolderMonitor:FileInfo";
-            public static string FoldermonitorMd5 = "FolderMonitor:MD5";
-        }
+	    public class FileInformation
+	    {
+		    public string Content;
+		    public string MD5String;
+		    public FileInfo Info;
+
+		    public FileInformation(byte[] b)
+		    {
+			    MD5String = Convert.ToBase64String(MD5.Create().ComputeHash(new MemoryStream(b)));
+		    }
+	    }
+
 
         public FolderMonitorEndpoint Recursive(bool r)
         {
@@ -77,7 +84,7 @@ namespace NCamel.Core.FileEndpoint
 
         public void OnComplete(Exchange e)
         {
-            var info = e.Message.GetFileInfo();
+            var info = e.Message.Get<FileInformation>().Single().Info;
 
             if (e.IsFaulted)
             {
@@ -94,8 +101,12 @@ namespace NCamel.Core.FileEndpoint
 
         private Message<string> FillMetaData(Message<string> msg, string file, FileInfo fileInfo)
         {
-            msg.MetaData[MetaDataNames.FoldermonitorFileinfo] = fileInfo;
-            msg.MetaData[MetaDataNames.FoldermonitorMd5] = Convert.ToBase64String(MD5.Create().ComputeHash(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(file))));
+            msg.MetaData.Add(new FileInformation(System.Text.Encoding.UTF8.GetBytes(file))
+                {
+                    Content = file,
+                    Info = fileInfo
+                }
+            );
            
             return msg;
         }
@@ -103,19 +114,6 @@ namespace NCamel.Core.FileEndpoint
         private string ReadFile(FileInfo fileInfo)
         {
             return File.ReadAllText(fileInfo.FullName);
-        }
-    }
-
-    public static class FolderMonitorExtensions
-    {
-        public static FileInfo GetFileInfo(this Message message)
-        {
-            return (FileInfo)message.MetaData[FolderMonitorEndpoint.MetaDataNames.FoldermonitorFileinfo];
-        }
-
-        public static string GetMD5CheckSum(this Message message)
-        {
-            return (string)message.MetaData[FolderMonitorEndpoint.MetaDataNames.FoldermonitorMd5];
         }
     }
 }

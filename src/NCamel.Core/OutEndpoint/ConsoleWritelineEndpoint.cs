@@ -17,7 +17,7 @@ namespace NCamel.Core
             Console.WriteLine("ConsoleWritelineEndpoint");
             Console.WriteLine($"id:{e.Message.Id}");
             Console.WriteLine("Headers");
-            e.Message.MetaData.ToList().ForEach(x => Console.WriteLine(x.Key + "=" + x.Value.ToString()));
+            e.Message.MetaData.ToList().ForEach(x => Console.WriteLine(x.ToString()));
             Console.WriteLine($"content:{e.Message.Content}");
         }
     }

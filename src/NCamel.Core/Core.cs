@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace NCamel.Core
 {
     public interface IProducer<T>
-    {
-
-    }
+    { }
 
     public class Context
     {
@@ -16,6 +15,7 @@ namespace NCamel.Core
         public CancellationTokenSource CancellationTokenSource = new CancellationTokenSource();
 
         List<Task> tasks = new List<Task>();
+
         public Context()
         {
             Logger.Info("Starting ctx");
@@ -33,7 +33,7 @@ namespace NCamel.Core
 
         public void RegisterRecurring(TimeSpan minimumDelay, Action f)
         {
-            tasks.Add(Task.Run(()=>new Throtler().Execute(minimumDelay, CancellationTokenSource.Token, f)));
+            tasks.Add(Task.Run(() => new Throtler().Execute(minimumDelay, CancellationTokenSource.Token, f)));
         }
 
     }
@@ -54,7 +54,6 @@ namespace NCamel.Core
                     cancellationToken.WaitHandle.WaitOne(minimumDelay - duration);
             }
         }
-
     }
 
     public class Exchange
@@ -79,12 +78,17 @@ namespace NCamel.Core
     public class Message
     {
         public Guid Id { get; }
-        public Dictionary<string, object> MetaData = new Dictionary<string, object>();
+        public List<object> MetaData = new List<object>();
         public object Content { get; set; }
 
         public Message()
         {
             Id = Guid.NewGuid();
+        }
+
+        public IEnumerable<T> Get<T>()
+        {
+            return MetaData.OfType<T>();
         }
     }
 
