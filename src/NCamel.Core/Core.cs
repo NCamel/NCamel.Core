@@ -23,11 +23,10 @@ namespace NCamel.Core
 
         public void Register(Action s)
         {
-            tasks.Add(Task.Run(() => s).ContinueWith(Stop));
-
+            tasks.Add(Task.Run(s).ContinueWith(Stop));
         }
 
-        private void Stop(Task<Action> obj)
+        private void Stop(Task obj)
         {
             Logger.Info("Stopping");
         }

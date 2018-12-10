@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using NCamel.Core.FileEndpoint;
 
 namespace NCamel.Core
@@ -16,6 +17,8 @@ namespace NCamel.Core
                     ctx.CancellationTokenSource.Token,  
                     () => new FolderMonitorEndpoint(ctx).Folder(@"c:\temp").Execute());
             });
+
+			Thread.Sleep(4000);
         }
     }
 }
