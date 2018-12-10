@@ -6,8 +6,63 @@ using System.Threading.Tasks;
 
 namespace NCamel.Core
 {
-    public interface IProducer<T>
-    { }
+    public interface IProducer
+    {
+        void Execute();
+    }
+
+    public interface Step
+    {
+        void Execute(Exchange e);
+        void OnComplete(Exchange e);
+    }
+
+    public class StepAdaptor : Step
+    {
+        private readonly Action<Exchange> execute;
+        private readonly Action<Exchange> onComplete;
+
+        public StepAdaptor(Action<Exchange> execute, Action<Exchange> onComplete)
+        {
+            this.execute = execute;
+            this.onComplete = onComplete;
+        }
+        public void Execute(Exchange e)
+        {
+            execute(e);
+        }
+
+        public void OnComplete(Exchange e)
+        {
+            onComplete(e);
+        }
+    }
+
+    public class Route
+    {
+        public readonly string Name;
+        private readonly Context ctx;
+        public readonly List<Step> Steps;
+
+        public Route(string name, Context ctx)
+        {
+            Name = name;
+            this.ctx = ctx;
+            Steps=new List<Step>();
+        }
+
+        public Route From(Step a)
+        {
+            Steps.Add(a);
+            return this;
+        }
+
+        public Route To(Step a)
+        {
+            Steps.Add(a);
+            return this;
+        }
+    }
 
     public class Context
     {
@@ -21,46 +76,33 @@ namespace NCamel.Core
             Logger.Info("Starting ctx");
         }
 
-        public void Register(Action s)
+        public Route Route(string name)
         {
-            tasks.Add(Task.Run(s).ContinueWith(Stop));
+            return new Route(name, this);
+        }
+
+        public void Register(IProducer s)
+        {
+            tasks.Add(Task.Run(()=>s.Execute(), CancellationTokenSource.Token).ContinueWith(Stop));
+        }
+
+        public void Start(Exchange e)
+        {
+            // dont add to task as a route is short lived---
+            Task.Run(()=>e.Execute(), CancellationTokenSource.Token).ContinueWith(Stop);
         }
 
         private void Stop(Task obj)
         {
-            Logger.Info("Stopping");
-        }
-
-        public void RegisterRecurring(TimeSpan minimumDelay, Action f)
-        {
-            tasks.Add(Task.Run(() => new Throtler().Execute(minimumDelay, CancellationTokenSource.Token, f)));
-        }
-    }
-
-    public class Throtler
-    {
-        public void Execute(TimeSpan minimumDelay, CancellationToken cancellationToken, Action f)
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var now = DateTime.Now;
-
-                f();
-
-                var duration = now - DateTime.Now;
-
-                if (duration < minimumDelay)
-                    cancellationToken.WaitHandle.WaitOne(minimumDelay - duration);
-            }
         }
     }
 
     public class Exchange
     {
-        public Exchange(Context ctx, Action<Exchange> onComplete)
+        public Exchange(Context ctx, Route route)
         {
             Ctx = ctx;
-            OnCompleteHandler = onComplete;
+            Route = route;
         }
 
         public Context Ctx { get; }
@@ -71,7 +113,19 @@ namespace NCamel.Core
 
         public Message Message { get; set; }
 
-        public Action<Exchange> OnCompleteHandler { get; set; }
+        public Route Route;
+        public Stack<Action<Exchange>> OnCompleteActions = new Stack<Action<Exchange>>();
+
+        public void Execute()
+        {
+            foreach (var step in Route.Steps)
+                step.Execute(this);
+
+            while (OnCompleteActions.Any())
+                OnCompleteActions.Pop()(this);
+
+            //Logger.Info($"Ending: '{Route.Name}'. Duration: {(DateTime.Now-StartTime).TotalMilliseconds}");
+        }
     }
 
     public class Message

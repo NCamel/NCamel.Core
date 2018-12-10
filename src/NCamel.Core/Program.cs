@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using NCamel.Core.FileEndpoint;
 
 namespace NCamel.Core
@@ -10,15 +9,15 @@ namespace NCamel.Core
         {
             var ctx = new Context();
 
-            ctx.Register(() =>
-            {
-                new Throtler().Execute(
-                    TimeSpan.FromSeconds(1),
-                    ctx.CancellationTokenSource.Token,
-                    () => new FolderMonitorEndpoint(ctx).Folder(@"c:\temp").Execute());
-            });
+            ctx
+                .FromPoller(TimeSpan.FromMinutes(1))
+                .To(() =>
+                    new FolderMonitorEndpoint(ctx)
+                        .Folder(@"c:\temp")
+                        .DeleteFile()
+                        .To(new Route("invoices", ctx)));
 
-            Thread.Sleep(4000);
+            Console.ReadKey();
         }
     }
 }
