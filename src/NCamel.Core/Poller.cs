@@ -7,7 +7,7 @@ namespace NCamel.Core
     {
         public static Poller FromPoller(this Context c, TimeSpan minimumDelay)
         {
-            var poller = new Poller(minimumDelay, c.CancellationTokenSource.Token);
+            var poller = new Poller(minimumDelay, c);
             c.Register(poller);
             return poller;
         }
@@ -16,19 +16,25 @@ namespace NCamel.Core
     public class Poller : IProducer
     {
         private readonly TimeSpan minimumDelay;
+        private readonly Context ctx;
         private readonly CancellationToken cancellationToken;
-        private Action f;
+        private Func<IProducer> producerFac;
 
-        public Poller(TimeSpan minimumDelay, CancellationToken cancellationToken)
+        public Poller(TimeSpan minimumDelay, Context ctx)
         {
             this.minimumDelay = minimumDelay;
-            this.cancellationToken = cancellationToken;
+            this.ctx = ctx;
+            this.cancellationToken = ctx.CancellationTokenSource.Token;
         }
 
-        public void To(Action f)
+        public Route To(Func<IProducer> producerFac)
         {
-            this.f = f;
+            this.producerFac = producerFac;
+            Route = new Route(ctx, null);
+            return Route;
         }
+
+        public Route Route { get; set; }
 
         public void Execute()
         {
@@ -36,7 +42,9 @@ namespace NCamel.Core
             {
                 var now = DateTime.Now;
 
-                f();
+                var producer = producerFac();
+                producer.Route = Route;
+                producer.Execute();
 
                 var duration = now - DateTime.Now;
 

@@ -8,6 +8,7 @@ namespace NCamel.Core
 {
     public interface IProducer
     {
+        Route Route { get; set; }
         void Execute();
     }
 
@@ -40,15 +41,21 @@ namespace NCamel.Core
 
     public class Route
     {
-        public readonly string Name;
+        public string Name { get; set; }
         private readonly Context ctx;
-        public readonly List<Step> Steps;
+        private readonly IProducer producer;
+        public readonly List<Step> Steps = new List<Step>();
+
+        public Route(Context ctx, IProducer producer)
+        {
+            this.ctx = ctx;
+            this.producer = producer;
+        }
 
         public Route(string name, Context ctx)
         {
             Name = name;
             this.ctx = ctx;
-            Steps=new List<Step>();
         }
 
         public Route From(Step a)
@@ -61,6 +68,11 @@ namespace NCamel.Core
         {
             Steps.Add(a);
             return this;
+        }
+
+        public void Build()
+        {
+            producer.Route = this;
         }
     }
 

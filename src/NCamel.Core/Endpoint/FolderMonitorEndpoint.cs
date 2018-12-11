@@ -45,15 +45,9 @@ namespace NCamel.Core.FileEndpoint
             return this;
         }
 
-        public FolderMonitorEndpointBuilder To(Route r)
+       public FolderMonitorEndpoint Build()
         {
-            this.route = r;
-            return this;
-        }
-
-        public FolderMonitorEndpoint Build()
-        {
-            return new FolderMonitorEndpoint(ctx, folderName, deleteFile, recursive, searchPattern, route);
+            return new FolderMonitorEndpoint(ctx, folderName, deleteFile, recursive, searchPattern);
         }
     }
 
@@ -72,21 +66,21 @@ namespace NCamel.Core.FileEndpoint
     {
         private const string ProcessedFolderName = ".ncamel/";
         private readonly Context ctx;
-        private readonly Route route;
         private readonly string folderName;
         private readonly bool deleteFile;
         private readonly bool recursive;
         private readonly string searchPattern;
 
-        public FolderMonitorEndpoint(Context ctx, string folder, bool deleteFile, bool recursive, string searchPattern, Route r)
+        public FolderMonitorEndpoint(Context ctx, string folder, bool deleteFile, bool recursive, string searchPattern)
         {
             this.ctx = ctx;
             folderName = folder;
             this.deleteFile = deleteFile;
             this.recursive = recursive;
             this.searchPattern = searchPattern;
-            this.route = r;
         }
+
+        public Route Route { get; set; }
 
         public void Execute()
         {
@@ -105,7 +99,7 @@ namespace NCamel.Core.FileEndpoint
                     var file = ReadFile(x);
                     return FillMetaData(new Message<string>(), file, x);
                 })
-                .Select(x => new Exchange(ctx, route) {Message = x})
+                .Select(x => new Exchange(ctx, Route) {Message = x})
                 .ToList();
 
             messages.ForEach(x=>

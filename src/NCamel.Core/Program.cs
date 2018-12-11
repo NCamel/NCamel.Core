@@ -11,15 +11,12 @@ namespace NCamel.Core
 
             ctx
                 .FromPoller(TimeSpan.FromMinutes(1))
-                .To(() =>
-                    ctx.FolderMonitorEndpointBuilder()
-                        .Folder(@"c:\temp")
-                        .DeleteFile()
-                        .Recursive(false)
-                        .To(new Route("invoices", ctx)
-                            .To(new ConsoleWritelineEndpoint(ctx)))
-                        .Build()
-                );
+                .To(() => ctx.FolderMonitorEndpointBuilder()
+                    .Folder(@"c:\temp")
+                    .DeleteFile()
+                    .Recursive(false)
+                    .Build())
+                .To(new ConsoleWritelineEndpoint(ctx));
 
             Console.ReadKey();
         }
