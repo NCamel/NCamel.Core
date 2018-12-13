@@ -15,7 +15,6 @@ namespace NCamel.Core.FileEndpoint
         private bool deleteFile;
         private bool recursive;
         private string searchPattern = "*.*";
-        private Route route;
 
         public FolderMonitorEndpointBuilder(Context ctx)
         {
@@ -27,6 +26,7 @@ namespace NCamel.Core.FileEndpoint
             folderName = f;
             return this;
         }
+
         public FolderMonitorEndpointBuilder Recursive(bool r)
         {
             recursive = r;
@@ -45,7 +45,7 @@ namespace NCamel.Core.FileEndpoint
             return this;
         }
 
-       public FolderMonitorEndpoint Build()
+        public FolderMonitorEndpoint Build()
         {
             return new FolderMonitorEndpoint(ctx, folderName, deleteFile, recursive, searchPattern);
         }
@@ -57,23 +57,34 @@ namespace NCamel.Core.FileEndpoint
         {
             return new FolderMonitorEndpointBuilder(ctx);
         }
+        public static FolderMonitorEndpoint FolderMonitorEndpoint(this Context ctx, string folder, bool deleteFile=false, bool recursive=false, string searchPattern="*")
+        {
+            return new FolderMonitorEndpoint(ctx, folder, deleteFile, recursive, searchPattern);
+        }
     }
 
     /// <summary>
     ///     example of a batching enpoint
     /// </summary>
-    public class FolderMonitorEndpoint : IProducer
+    public class FolderMonitorEndpoint : Producer<string>
     {
         private const string ProcessedFolderName = ".ncamel/";
-        private readonly Context ctx;
         private readonly string folderName;
         private readonly bool deleteFile;
         private readonly bool recursive;
         private readonly string searchPattern;
 
+        public FolderMonitorEndpoint(string folder, bool deleteFile, bool recursive, string searchPattern)
+        {
+            folderName = folder;
+            this.deleteFile = deleteFile;
+            this.recursive = recursive;
+            this.searchPattern = searchPattern;
+        }
+
         public FolderMonitorEndpoint(Context ctx, string folder, bool deleteFile, bool recursive, string searchPattern)
         {
-            this.ctx = ctx;
+            Ctx = ctx;
             folderName = folder;
             this.deleteFile = deleteFile;
             this.recursive = recursive;
@@ -82,7 +93,7 @@ namespace NCamel.Core.FileEndpoint
 
         public Route Route { get; set; }
 
-        public void Execute()
+        public override void Execute()
         {
             Logger.Info($"{nameof(FolderMonitorEndpoint)} Checking {folderName}");
 
@@ -90,23 +101,45 @@ namespace NCamel.Core.FileEndpoint
             if (!di.Exists)
                 throw new ArgumentException($"Folder not found \'{folderName}\'");
 
-            var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-            var messages = new[]{di}.Union( di.EnumerateDirectories("*", searchOption))
-                .Where(x => x.Name != ProcessedFolderName)
+            var exchanges = GetDirs(di, recursive)
                 .SelectMany(x => x.EnumerateFiles(searchPattern, SearchOption.TopDirectoryOnly))
-                .Select(x =>
-                {
-                    var file = ReadFile(x);
-                    return FillMetaData(new Message<string>(), file, x);
-                })
-                .Select(x => new Exchange(ctx, Route) {Message = x})
+                .Select(x => CreateMessage(x))
+                .Select(msg => Ctx.CreateExchange(Route, msg, OnComplete))
                 .ToList();
 
-            messages.ForEach(x=>
+            exchanges.ForEach(x=>
             {
-                x.OnCompleteActions.Push(OnComplete);
-                ctx.Start(x);
+                Ctx.Start(x);
             });
+        }
+
+        private Message<string> CreateMessage(FileInfo x)
+        {
+            var file = File.ReadAllText(x.FullName);
+
+            var fileInformation = new FileInformation(Encoding.UTF8.GetBytes(file))
+            {
+                Content = file,
+                Info = x
+            };
+
+            var msg = new Message<string>();
+            msg.MetaData.Add(fileInformation);
+
+            return msg;
+        }
+
+        IEnumerable<DirectoryInfo> GetDirs(DirectoryInfo start, bool isRecursive)
+        {
+            if (!isRecursive)
+                return new[]{start};
+
+            var subDirs = start
+                .EnumerateDirectories("*", SearchOption.TopDirectoryOnly)
+                .Where(x => x.Name != ProcessedFolderName)
+                .SelectMany(x => GetDirs(x, true));
+
+            return new[] {start}.Union(subDirs);
         }
 
         public void OnComplete(Exchange e)
@@ -127,23 +160,6 @@ namespace NCamel.Core.FileEndpoint
                 else
                     File.Move(info.FullName, Path.Combine(info.DirectoryName, ProcessedFolderName, info.Name));
             }
-        }
-
-        private Message<string> FillMetaData(Message<string> msg, string file, FileInfo fileInfo)
-        {
-            msg.MetaData.Add(new FileInformation(Encoding.UTF8.GetBytes(file))
-                {
-                    Content = file,
-                    Info = fileInfo
-                }
-            );
-
-            return msg;
-        }
-
-        private string ReadFile(FileInfo fileInfo)
-        {
-            return File.ReadAllText(fileInfo.FullName);
         }
 
         public class FileInformation

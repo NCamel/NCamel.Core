@@ -8,17 +8,27 @@ namespace NCamel.Core
 {
     public interface IProducer
     {
+        Context Ctx { get; set; }
         Route Route { get; set; }
         void Execute();
     }
 
-    public interface Step
+    public interface IProducer<TOut> : IProducer
+    {
+        new Route<TOut> Route { get; set; }
+    }
+
+    public interface IStep
     {
         void Execute(Exchange e);
         void OnComplete(Exchange e);
     }
 
-    public class StepAdaptor : Step
+    public interface Step<TIn,TOut> : IStep
+    {
+    }
+
+    public class StepAdaptor<TIn,TOut>: Step<TIn,TOut>
     {
         private readonly Action<Exchange> execute;
         private readonly Action<Exchange> onComplete;
@@ -28,6 +38,7 @@ namespace NCamel.Core
             this.execute = execute;
             this.onComplete = onComplete;
         }
+
         public void Execute(Exchange e)
         {
             execute(e);
@@ -42,37 +53,37 @@ namespace NCamel.Core
     public class Route
     {
         public string Name { get; set; }
-        private readonly Context ctx;
-        private readonly IProducer producer;
-        public readonly List<Step> Steps = new List<Step>();
+        internal readonly List<IStep> Steps = new List<IStep>();
 
-        public Route(Context ctx, IProducer producer)
+        public Route()
         {
-            this.ctx = ctx;
-            this.producer = producer;
         }
 
-        public Route(string name, Context ctx)
+        internal Route(string name, List<IStep> steps)
         {
             Name = name;
-            this.ctx = ctx;
+            Steps = steps;
         }
 
-        public Route From(Step a)
+        public Route(string name)
+        {
+            Name = name;
+        }
+    }
+
+    public class Route<T> : Route
+    {
+        internal Route()
+        {
+            }
+
+        internal Route(string name, List<IStep> steps) : base(name, steps)
+        {}
+
+        public Route<TResult> To<TInput, TResult>(Step<TInput, TResult> a)
         {
             Steps.Add(a);
-            return this;
-        }
-
-        public Route To(Step a)
-        {
-            Steps.Add(a);
-            return this;
-        }
-
-        public void Build()
-        {
-            producer.Route = this;
+            return new Route<TResult>(Name, Steps);
         }
     }
 
@@ -90,18 +101,30 @@ namespace NCamel.Core
 
         public Route Route(string name)
         {
-            return new Route(name, this);
+            return new Route(name);
         }
 
         public void Register(IProducer s)
         {
-            tasks.Add(Task.Run(()=>s.Execute(), CancellationTokenSource.Token).ContinueWith(Stop));
+            tasks.Add(
+                Task.Run(()=>s.Execute(), CancellationTokenSource.Token)
+                .ContinueWith(Stop));
+        }
+
+        public void StartAsync(Exchange e)
+        {
+            // dont add to task as a route is short lived---
+            Task.Run(() => e.Execute(), CancellationTokenSource.Token).ContinueWith(Stop);
         }
 
         public void Start(Exchange e)
         {
-            // dont add to task as a route is short lived---
-            Task.Run(()=>e.Execute(), CancellationTokenSource.Token).ContinueWith(Stop);
+            e.Execute();
+        }
+
+        public Exchange CreateExchange(Route route, Message message = null, Action<Exchange> onComplete = null)
+        {
+            return new Exchange(this, route, message, onComplete);
         }
 
         private void Stop(Task obj)
@@ -117,6 +140,16 @@ namespace NCamel.Core
             Route = route;
         }
 
+        public Exchange(Context ctx, Route route, Message message, Action<Exchange> onComplete)
+        {
+            Ctx = ctx;
+            Route = route;
+            Message = message;
+
+            if(onComplete!=null)
+                OnCompleteActions.Push(onComplete);
+        }
+
         public Context Ctx { get; }
         public DateTime StartTime { get; } = DateTime.Now;
         public Exception Exception { get; set; }
@@ -128,7 +161,7 @@ namespace NCamel.Core
         public Route Route;
         public Stack<Action<Exchange>> OnCompleteActions = new Stack<Action<Exchange>>();
 
-        public void Execute()
+        internal void Execute()
         {
             foreach (var step in Route.Steps)
                 step.Execute(this);

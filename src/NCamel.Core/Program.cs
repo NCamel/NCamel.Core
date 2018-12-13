@@ -10,13 +10,9 @@ namespace NCamel.Core
             var ctx = new Context();
 
             ctx
-                .FromPoller(TimeSpan.FromMinutes(1))
-                .To(() => ctx.FolderMonitorEndpointBuilder()
-                    .Folder(@"c:\temp")
-                    .DeleteFile()
-                    .Recursive(false)
-                    .Build())
-                .To(new ConsoleWritelineEndpoint(ctx));
+                .FromPoller<string>(TimeSpan.FromMinutes(1))
+                .To(ctx.FolderMonitorEndpoint(folder: @"c:\temp", deleteFile: true, recursive: false))
+                .To(new ConsoleWritelineEndpoint<string>(ctx));
 
             Console.ReadKey();
         }

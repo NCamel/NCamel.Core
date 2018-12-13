@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace NCamel.Core
 {
-    public class ConsoleWritelineEndpoint : Step
+    public class ConsoleWritelineEndpoint<T> : Step<T,T>
     {
         private readonly Context ctx;
 

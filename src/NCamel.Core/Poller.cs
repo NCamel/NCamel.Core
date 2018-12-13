@@ -5,46 +5,66 @@ namespace NCamel.Core
 {
     public static class PollerExtensions
     {
-        public static Poller FromPoller(this Context c, TimeSpan minimumDelay)
+        public static Poller<T> FromPoller<T>(this Context ctx, TimeSpan minimumDelay)
         {
-            var poller = new Poller(minimumDelay, c);
-            c.Register(poller);
+            var poller = new Poller<T>(minimumDelay, ctx.CancellationTokenSource.Token)
+            {
+                Ctx = ctx
+            };
+            ctx.Register(poller);
+
             return poller;
         }
     }
 
-    public class Poller : IProducer
+    public abstract class Producer<T>: IProducer<T>
     {
-        private readonly TimeSpan minimumDelay;
-        private readonly Context ctx;
-        private readonly CancellationToken cancellationToken;
-        private Func<IProducer> producerFac;
-
-        public Poller(TimeSpan minimumDelay, Context ctx)
+        public Context Ctx { get; set; }
+        Route IProducer.Route
         {
-            this.minimumDelay = minimumDelay;
-            this.ctx = ctx;
-            this.cancellationToken = ctx.CancellationTokenSource.Token;
+            get => Route;
+            set => Route = (Route<T>) value;
         }
 
-        public Route To(Func<IProducer> producerFac)
+        public Route<T> Route { get; set; }
+        public abstract void Execute();
+
+        protected Func<IProducer<T>> ProducerFac;
+
+        public Route<T> To(Func<IProducer<T>> producerFac)
         {
-            this.producerFac = producerFac;
-            Route = new Route(ctx, null);
+            ProducerFac = producerFac;
+            Route = new Route<T>();
             return Route;
         }
 
-        public Route Route { get; set; }
+        public Route<T> To(IProducer<T> producer)
+        {
+            return To(() => producer);
+        }
+    }
 
-        public void Execute()
+    public class Poller<T> : Producer<T>
+    {
+        private readonly TimeSpan minimumDelay;
+        private readonly CancellationToken cancellationToken;
+
+        public Poller(TimeSpan minimumDelay, CancellationToken cancellationToken)
+        {
+            this.minimumDelay = minimumDelay;
+            this.cancellationToken = cancellationToken;
+        }
+
+        public override void Execute()
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 var now = DateTime.Now;
 
-                var producer = producerFac();
+                var producer = ProducerFac();
                 producer.Route = Route;
                 producer.Execute();
+                producer.Ctx = Ctx;
 
                 var duration = now - DateTime.Now;
 
